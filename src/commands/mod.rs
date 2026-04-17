@@ -1,0 +1,9 @@
+pub mod install;
+pub mod litellm;
+pub mod models;
+pub mod attach;
+pub mod serve;
+pub mod stop;
+pub mod sync;
+pub mod vibe;
+pub mod opencode;
