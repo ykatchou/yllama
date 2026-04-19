@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::{config::Config, vibe_config, opencode_config};
+use crate::{config::Config, vibe_config};
 
 pub async fn run(cfg: &Config) -> Result<()> {
     let base_url = format!("http://{}:{}", cfg.host, cfg.port);
@@ -16,8 +16,5 @@ pub async fn run(cfg: &Config) -> Result<()> {
     println!("Found {} model(s): {}", models.len(), ids.join(", "));
     vibe_config::sync_with_models(&base_url, &models)?;
     println!("Updated {}", vibe_config::vibe_config_path().display());
-
-    opencode_config::sync_with_models(&base_url).await?;
-    println!("Updated {}", opencode_config::opencode_config_path().display());
     Ok(())
 }

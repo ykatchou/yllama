@@ -3,7 +3,6 @@ mod config;
 mod llamacpp;
 mod manifest;
 mod vibe_config;
-mod opencode_config;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -52,11 +51,7 @@ enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         extra_args: Vec<String>,
     },
-    /// Launch opencode in a directory (auto-starts llama.cpp and syncs opencode config)
-    Opencode {
-        /// Directory to open in opencode (defaults to current directory)
-        folder: Option<PathBuf>,
-    },
+
     /// Generate a LiteLLM proxy config from the running server
     Litellm {
         /// Output file path (default: ./litellm_config.yaml)
@@ -123,9 +118,6 @@ async fn main() -> Result<()> {
         }
         Commands::Vibe { folder, extra_args } => {
             commands::vibe::run(&cfg, folder, &extra_args).await?;
-        }
-        Commands::Opencode { folder } => {
-            commands::opencode::run(&cfg, folder).await?;
         }
         Commands::Litellm { output } => {
             commands::litellm::run(&cfg, output).await?;

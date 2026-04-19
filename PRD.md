@@ -218,21 +218,7 @@ Missing config file → all defaults apply.
 
 ---
 
-### US-9 — Launch opencode with llama.cpp auto-started
-> As a developer, I want `yllama opencode [folder] [<opencode-args>]` to ensure
-> llama.cpp is running, sync the opencode config, and then open opencode in a given
-> directory — all in one command.
 
-**Acceptance criteria:**
-- If llama-server is not running it is started using the first available
-  downloaded model (same logic as `yllama serve`).
-- `~/.cache/opencode/models.json` is synchronised before opencode opens.
-- opencode is exec'd (replaces the yllama process) in the given folder, or the
-  current directory if none is specified.
-- Errors at any stage (no models, server timeout, `opencode` not on PATH) are
-  reported before launching.
-
----
 
 ## Test Plan
 
@@ -283,10 +269,7 @@ cat /tmp/llm.yaml   # contains model entries
 # 7. Vibe launch
 yllama vibe /path/to/project -- --theme dark
 
-# 8. Opencode launch
-yllama opencode /path/to/project
-
-# 9. Stop
+# 8. Stop
 yllama stop
 curl http://localhost:8080/health   # connection refused
 

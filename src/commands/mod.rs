@@ -6,4 +6,3 @@ pub mod serve;
 pub mod stop;
 pub mod sync;
 pub mod vibe;
-pub mod opencode;

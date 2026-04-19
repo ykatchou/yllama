@@ -23,6 +23,7 @@ This file contains the core instructions and usage patterns for the `yllama` CLI
 - `yllama vibe [folder] [-- <vibe-args>]`: Launch Vibe, auto-starting the server and syncing config.
 
 ## Usage Patterns
+- Changes should be committed along the way.
 - Background server with GPU layers: `yllama serve -- -ngl 35 -c 8192`
 - Foreground server (debug): `yllama start -- -ngl 35 -c 8192`
 - Vibe with a specific theme: `yllama vibe -- --theme dark`

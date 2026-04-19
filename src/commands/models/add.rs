@@ -4,11 +4,40 @@ use crate::manifest::{self, ModelEntry};
 use crate::commands::models::hf_search;
 use dialoguer::{theme::ColorfulTheme, Select};
 
+/// Returns true for `owner/repo` shorthand (no scheme, exactly one `/`, no spaces).
+fn is_model_id(s: &str) -> bool {
+    !s.contains(' ') && s.split('/').count() == 2 && !s.starts_with("http")
+}
+
+/// Extract a `owner/repo` model ID from a plain HuggingFace repo page URL
+/// like `https://huggingface.co/owner/repo` (no extra path segments after repo).
+fn hf_repo_model_id(url: &str) -> Option<String> {
+    let path = url
+        .strip_prefix("https://huggingface.co/")
+        .or_else(|| url.strip_prefix("http://huggingface.co/"))?;
+    let parts: Vec<&str> = path.splitn(3, '/').collect();
+    if parts.len() == 2 {
+        Some(format!("{}/{}", parts[0], parts[1]))
+    } else {
+        None
+    }
+}
+
 pub async fn run(input: &str, name_override: Option<&str>) -> Result<()> {
     let mut download_url = input.to_string();
 
-    // Check if it's a URL or a search query
-    if !input.starts_with("http") {
+    if let Some(model_id) = hf_repo_model_id(input) {
+        // Plain HF repo URL — pick a GGUF file interactively.
+        println!("Fetching GGUF files from '{}'…", model_id);
+        download_url = hf_search::pick_gguf_url(&model_id).await?;
+        println!("Selected: {}", download_url);
+    } else if is_model_id(input) {
+        // owner/repo shorthand — pick a GGUF file interactively.
+        println!("Fetching GGUF files from '{}'…", input);
+        download_url = hf_search::pick_gguf_url(input).await?;
+        println!("Selected: {}", download_url);
+    } else if !input.starts_with("http") {
+        // Free-text search query.
         println!("Searching Hugging Face for '{}'...", input);
         let models = hf_search::search_models(input).await?;
 
@@ -16,10 +45,7 @@ pub async fn run(input: &str, name_override: Option<&str>) -> Result<()> {
             bail!("No models found for query: {}", input);
         }
 
-        let model_options: Vec<String> = models
-            .iter()
-            .map(|m| format!("{} ({})", m.model_name, m.id))
-            .collect();
+        let model_options: Vec<String> = models.iter().map(|m| m.id.clone()).collect();
 
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Select a model")
@@ -30,10 +56,10 @@ pub async fn run(input: &str, name_override: Option<&str>) -> Result<()> {
         let selected_model = &models[selection];
         println!("Selected model: {}", selected_model.id);
 
-        download_url = hf_search::get_gguf_url(&selected_model.id).await?;
-        println!("Found GGUF URL: {}", download_url);
+        download_url = hf_search::pick_gguf_url(&selected_model.id).await?;
+        println!("Selected: {}", download_url);
     } else {
-        // /blob/ links are browser-facing — convert to /resolve/ for direct downloads
+        // Direct file URL — /blob/ links are browser-facing, convert to /resolve/.
         download_url = download_url.replace("/blob/", "/resolve/");
     }
 
@@ -81,6 +107,8 @@ pub async fn run(input: &str, name_override: Option<&str>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::{is_model_id, hf_repo_model_id};
+
     fn blob_to_resolve(url: &str) -> String {
         url.replace("/blob/", "/resolve/")
     }
@@ -125,5 +153,28 @@ mod tests {
     fn test_name_derived_from_filename() {
         let filename = "gemma-Q4_K_M.gguf";
         assert_eq!(filename.trim_end_matches(".gguf"), "gemma-Q4_K_M");
+    }
+
+    #[test]
+    fn test_is_model_id() {
+        assert!(is_model_id("unsloth/Qwen3.6-35B-A3B-GGUF"));
+        assert!(is_model_id("Qwen/Qwen3.6-35B-A3B"));
+        assert!(!is_model_id("https://huggingface.co/owner/repo"));
+        assert!(!is_model_id("some search query"));
+        assert!(!is_model_id("no-slash"));
+    }
+
+    #[test]
+    fn test_hf_repo_model_id() {
+        assert_eq!(
+            hf_repo_model_id("https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF"),
+            Some("unsloth/Qwen3.6-35B-A3B-GGUF".to_string())
+        );
+        // URL with extra path segments is NOT a plain repo URL
+        assert_eq!(
+            hf_repo_model_id("https://huggingface.co/owner/repo/resolve/main/file.gguf"),
+            None
+        );
+        assert_eq!(hf_repo_model_id("not-a-url"), None);
     }
 }
