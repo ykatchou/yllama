@@ -17,7 +17,15 @@ pub fn run() -> Result<()> {
 
     println!("Attaching to llama-server (PID {})...", pid);
     let log_path = llamacpp::log_path();
-    
+
+    if !log_path.exists() {
+        bail!(
+            "Log file not found at {}\n\
+             The server may not have started yet. Run `yllama attach` after `yllama serve`.",
+            log_path.display()
+        );
+    }
+
     let status = Command::new("tail")
         .arg("-f")
         .arg(&log_path)
