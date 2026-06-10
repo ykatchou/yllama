@@ -15,6 +15,10 @@ pub struct ModelEntry {
     /// Merged with any flags passed on the CLI at serve time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_args: Vec<String>,
+    /// When Some(name), this model is marked as the user's default choice.
+    /// Set interactively via `yllama serve` menu when multiple models exist.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
 }
 
 pub fn models_dir() -> PathBuf {
@@ -48,4 +52,31 @@ pub fn find<'a>(entries: &'a [ModelEntry], name: &str) -> Option<&'a ModelEntry>
 
 pub fn model_path(entry: &ModelEntry) -> PathBuf {
     models_dir().join(&entry.filename)
+}
+
+/// Return the active model: first, the user's marked default (if downloaded);
+/// otherwise the first downloaded model in manifest order.
+#[allow(dead_code)]
+pub fn find_active_model(entries: &[ModelEntry]) -> Option<&ModelEntry> {
+    // Check for an explicitly marked default
+    if let Some(default_name) = entries.iter().find_map(|e| e.default_model.as_deref()) {
+        if let Some(e) = entries.iter().find(|e| e.name == default_name && e.downloaded) {
+            return Some(e);
+        }
+    }
+    // Fallback: first downloaded
+    entries.iter().find(|e| e.downloaded && model_path(e).exists())
+}
+
+/// Format bytes into a human-readable string (GB / MB / B).
+pub fn format_bytes(b: u64) -> String {
+    const GB: u64 = 1_073_741_824;
+    const MB: u64 = 1_048_576;
+    if b >= GB {
+        format!("{:.1} GB", b as f64 / GB as f64)
+    } else if b >= MB {
+        format!("{:.1} MB", b as f64 / MB as f64)
+    } else {
+        format!("{b} B")
+    }
 }

@@ -16,7 +16,7 @@ fn default_server_bin() -> String {
     "llama-server".to_string()
 }
 fn default_port() -> u16 {
-    8080
+    4200
 }
 fn default_host() -> String {
     "127.0.0.1".to_string()

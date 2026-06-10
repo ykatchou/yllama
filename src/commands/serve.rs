@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 
-use crate::{config::Config, llamacpp, manifest};
+use crate::{config::Config, commands::select_model, llamacpp, manifest};
 
 pub async fn run(
     cfg: &Config,
@@ -9,34 +9,30 @@ pub async fn run(
     cli_extra_args: &[String],
 ) -> Result<()> {
     let entries = manifest::load()?;
-    let entry = match model_name {
-        Some(name) => manifest::find(&entries, name)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Model '{name}' not in manifest. \
-                     Run `yllama models add <url>` and `yllama models download {name}` first."
-                )
-            })?
-            .clone(),
-        None => {
-            let first_downloaded = entries
-                .iter()
-                .find(|e| e.downloaded && manifest::model_path(e).exists());
-
-            match first_downloaded {
-                Some(e) => {
-                    println!("Warning: No model specified. Using the first available downloaded model: '{}'", e.name);
-                    e.clone()
-                }
-                None => {
-                    anyhow::bail!(
-                        "No downloaded models found. \
-                         Run `yllama models download <name>` first."
+    let (entry, default_to_set) = match model_name {
+        Some(name) => {
+            let e = manifest::find(&entries, name)
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Model '{name}' not in manifest. \
+                         Run `yllama models add <url>` and `yllama models download {name}` first."
                     )
-                }
-            }
+                })?
+                .clone();
+            (e, None)
         }
+        None => select_model::select_model(&entries)?,
     };
+
+    // Persist "Set as default" if the user chose that option
+    if let Some(default_name) = default_to_set {
+        let mut entries = entries;
+        if let Some(e) = entries.iter_mut().find(|e| e.name == default_name) {
+            e.default_model = Some(default_name.clone());
+            manifest::save(&entries)?;
+            println!("'{default_name}' set as default model.");
+        }
+    }
 
     let model_path = manifest::model_path(&entry);
     if !model_path.exists() {

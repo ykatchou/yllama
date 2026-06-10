@@ -22,16 +22,64 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Launch llama-server as a background daemon
+    #[command(long_about = r#"
+Launch llama-server as a background daemon.
+
+If multiple models are downloaded and none is specified, an interactive menu
+appears to select one. Use `yllama models download <name>` to add models.
+
+MODEL:
+    Name from cache (uses first downloaded model if omitted)
+
+EXTRA FLAGS (forwarded verbatim to llama-server):
+    GPU
+      -ngl <N>          Number of GPU layers (e.g., -ngl 35)
+      --split-mode <m>  Split mode: none, layer, row, tensor
+      --tensor-split <f> Fraction of VRAM per GPU (e.g., --tensor-split 0.7,0.3,0)
+
+    PERFORMANCE
+      -t/--threads <N>  CPU threads (auto-detected if omitted)
+      -b/--batch-size <N>   Logical processing batch size (default: 2048)
+      -c/--ctx-size <N>   Context window size (e.g., -c 8192)
+      --ubatch-size <N>   Physical unrolling batch size (default: 512)
+
+    GENERATION
+      --temp <f>      Sampling temperature (default: 0.8)
+      --top-k <N>     Top-k sampling (default: 40)
+      --top-p <f>     Top-p sampling (default: 0.95)
+      --min-p <f>     Min-p sampling (default: 0.05)
+      --seed <N>      RNG seed (default: random)
+
+    ADVANCED
+      --flash-attn          Enable Flash Attention
+      --rope-scaling <m>    RoPE scaling: none, linear, yarn
+      --kv-offload          Offload KV cache to CPU
+      --mlock               Lock model in RAM
+      --mmap                Memory-map model file (default)
+      --no-mmap             Disable memory-mapping
+      --lora <path>         Load a LoRA adapter
+
+EXAMPLES:
+    yllama serve                         # Use first/default downloaded model
+    yllama serve my-model                # Use specific model
+    yllama serve -ngl 35 -c 8192         # GPU layers + context size
+    yllama start --temp 0.3 --top-p 0.9  # Foreground with generation params
+"#)]
     Serve {
-        /// Model name from cache (uses first downloaded model if omitted)
+        /// Model name from cache (interactive selection if omitted and multiple models available)
         model: Option<String>,
         /// Extra flags forwarded verbatim to llama-server (e.g. -ngl 35 -c 8192)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         extra_args: Vec<String>,
     },
     /// Launch llama-server in the foreground (useful for debugging)
+    #[command(long_about = r#"
+Launch llama-server in the foreground (useful for debugging).
+
+Same flags as `yllama serve` — see `yllama serve --help` for full details.
+"#)]
     Start {
-        /// Model name from cache (uses first downloaded model if omitted)
+        /// Model name from cache (interactive selection if omitted and multiple models available)
         model: Option<String>,
         /// Extra flags forwarded verbatim to llama-server (e.g. -ngl 35 -c 8192)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -48,6 +96,15 @@ enum Commands {
         /// Directory to open in Vibe (defaults to current directory)
         folder: Option<PathBuf>,
         /// Extra arguments forwarded verbatim to the vibe binary
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        extra_args: Vec<String>,
+    },
+    /// Launch Claude Code with the local llama.cpp server (auto-starts llama.cpp)
+    #[command(alias = "claude")]
+    ClaudeCode {
+        /// Directory to open in Claude Code (defaults to current directory)
+        folder: Option<PathBuf>,
+        /// Extra arguments forwarded verbatim to the claude binary
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         extra_args: Vec<String>,
     },
@@ -118,6 +175,9 @@ async fn main() -> Result<()> {
         }
         Commands::Vibe { folder, extra_args } => {
             commands::vibe::run(&cfg, folder, &extra_args).await?;
+        }
+        Commands::ClaudeCode { folder, extra_args } => {
+            commands::claude_code::run(&cfg, folder, &extra_args).await?;
         }
         Commands::Litellm { output } => {
             commands::litellm::run(&cfg, output).await?;

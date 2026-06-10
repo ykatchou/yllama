@@ -36,12 +36,15 @@ pub fn clear_pid() {
 
 fn base_cmd(cfg: &Config, model_path: &Path, extra_args: &[String]) -> std::process::Command {
     let mut cmd = std::process::Command::new(&cfg.server_bin);
+    let threads = (num_cpus::get() as i32 - 2).max(1);
     cmd.arg("-m")
         .arg(model_path)
         .arg("--host")
         .arg(&cfg.host)
         .arg("--port")
-        .arg(cfg.port.to_string());
+        .arg(cfg.port.to_string())
+        .arg("-t")
+        .arg(threads.to_string());
     for arg in extra_args {
         cmd.arg(arg);
     }

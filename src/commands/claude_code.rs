@@ -19,16 +19,26 @@ pub async fn run(cfg: &Config, folder: Option<PathBuf>, extra_args: &[String]) -
         println!(" done.");
     }
 
-    // Sync all configurations (vibe and opencode)
+    let base_url = format!("http://{}:{}", cfg.host, cfg.port);
+
+    // Get the model name for the --model flag
+    let entries = manifest::load()?;
+    let model_name = select_model::select_model(&entries)?.0.name;
+
+    // Sync vibe config so Claude Code can discover the model
     println!("Syncing configurations...");
     crate::commands::sync::run(cfg).await?;
 
-    // Replace the current process with vibe
-    println!("Launching vibe in {}", folder.display());
+    // Launch claude with env vars pointing to local llama.cpp
+    println!("Launching Claude Code in {}", folder.display());
     use std::os::unix::process::CommandExt;
-    let err = std::process::Command::new("vibe")
+    let err = std::process::Command::new("claude")
         .current_dir(&folder)
+        .arg("--model")
+        .arg(&model_name)
         .args(extra_args)
+        .env("ANTHROPIC_BASE_URL", &base_url)
+        .env("ANTHROPIC_AUTH_TOKEN", "local")
         .exec();
-    anyhow::bail!("Failed to exec vibe: {err}");
+    anyhow::bail!("Failed to exec claude: {err}");
 }

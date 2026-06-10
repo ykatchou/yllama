@@ -22,7 +22,7 @@ pub fn run() -> Result<()> {
         let status = if e.downloaded { "downloaded" } else { "not downloaded" };
         let size = e
             .size_bytes
-            .map(format_bytes)
+            .map(manifest::format_bytes)
             .unwrap_or_else(|| "-".to_string());
         println!(
             "{:<name_w$}  {:<14}  {:<10}  {}",
@@ -32,34 +32,20 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-fn format_bytes(b: u64) -> String {
-    const GB: u64 = 1_073_741_824;
-    const MB: u64 = 1_048_576;
-    if b >= GB {
-        format!("{:.1} GB", b as f64 / GB as f64)
-    } else if b >= MB {
-        format!("{:.1} MB", b as f64 / MB as f64)
-    } else {
-        format!("{b} B")
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::format_bytes;
-
     #[test]
     fn test_format_bytes_gb() {
-        assert_eq!(format_bytes(2_147_483_648), "2.0 GB");
+        assert_eq!(crate::manifest::format_bytes(2_147_483_648), "2.0 GB");
     }
 
     #[test]
     fn test_format_bytes_mb() {
-        assert_eq!(format_bytes(5_242_880), "5.0 MB");
+        assert_eq!(crate::manifest::format_bytes(5_242_880), "5.0 MB");
     }
 
     #[test]
     fn test_format_bytes_bytes() {
-        assert_eq!(format_bytes(512), "512 B");
+        assert_eq!(crate::manifest::format_bytes(512), "512 B");
     }
 }

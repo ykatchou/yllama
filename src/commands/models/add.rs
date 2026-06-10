@@ -98,6 +98,7 @@ pub async fn run(input: &str, name_override: Option<&str>) -> Result<()> {
         downloaded: false,
         size_bytes: None,
         extra_args: vec![],
+        default_model: None,
     });
     manifest::save(&entries)?;
     println!("Added model '{name}'.");
