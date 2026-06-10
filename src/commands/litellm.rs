@@ -8,7 +8,7 @@ pub async fn run(cfg: &Config, output: Option<PathBuf>) -> Result<()> {
     println!("Querying llama.cpp at {base_url}/v1/models ...");
     let models = vibe_config::fetch_models(&base_url).await?;
     if models.is_empty() {
-        anyhow::bail!("No models found on the server. Is llama-server running?");
+        anyhow::bail!("No models found on the server. Is llama-server running? Start it with `yllama serve`.");
     }
 
     let dest = output.unwrap_or_else(|| PathBuf::from("litellm_config.yaml"));

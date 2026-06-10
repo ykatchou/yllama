@@ -93,6 +93,20 @@ pub async fn pick_gguf_url(model_id: &str) -> Result<String> {
     let path = if gguf_files.len() == 1 {
         gguf_files.into_iter().next().unwrap()
     } else {
+        let prompt = if model_id == resolved_id {
+            format!("Select a GGUF file from '{}'", resolved_id)
+        } else {
+            format!("Select a GGUF file from '{}' ({} variants found)", resolved_id, gguf_files.len())
+        };
+        let sel = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt(prompt)
+            .items(&gguf_files)
+            .default(0)
+            .interact()?;
+        gguf_files[sel].clone()
+    };
+        gguf_files.into_iter().next().unwrap()
+    } else {
         let sel = Select::with_theme(&ColorfulTheme::default())
             .with_prompt(format!("Select a GGUF file from '{}'", resolved_id))
             .items(&gguf_files)

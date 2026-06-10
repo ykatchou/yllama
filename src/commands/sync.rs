@@ -7,7 +7,7 @@ pub async fn run(cfg: &Config) -> Result<()> {
     println!("Querying llama.cpp at {base_url}/v1/models ...");
     let models = vibe_config::fetch_models(&base_url).await?;
     if models.is_empty() {
-        anyhow::bail!("No models found on the server. Is llama-server running?");
+        anyhow::bail!("No models found on the server. Is llama-server running? Start it with `yllama serve`.");
     }
     let ids: Vec<&str> = models
         .iter()

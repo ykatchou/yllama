@@ -11,6 +11,7 @@ pub async fn run(cfg: &Config, folder: Option<PathBuf>, extra_args: &[String]) -
         println!("llama-server is not running — starting it...");
         let entries = manifest::load()?;
         let (entry, _) = select_model::select_model(&entries)?;
+        println!("Auto-starting llama-server with model '{}'...", entry.name);
         let model_path = manifest::model_path(&entry);
         let pid = llamacpp::spawn_daemon(cfg, &model_path, &entry.extra_args)?;
         llamacpp::write_pid(pid)?;
