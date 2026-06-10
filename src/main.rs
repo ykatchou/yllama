@@ -12,7 +12,28 @@ use std::path::PathBuf;
 #[command(
     name = "yllama",
     about = "Manage your local llama.cpp + Vibe AI stack",
-    version
+    version,
+    after_long_help = r#"
+COMMANDS:
+  SERVER
+    serve (bg)    Launch llama-server as a background daemon
+    start (fg)    Launch llama-server in the foreground
+    stop          Stop the running server
+    attach        View server logs
+
+  MODELS
+    models list   List all registered models
+    models add    Register a model URL
+    models download  Download a registered model
+    models delete   Remove a model from cache
+
+  INTEGRATION
+    vibe          Launch Vibe (auto-starts server + syncs config)
+    claude        Launch Claude Code (alias: claude-code)
+    litellm       Generate LiteLLM proxy config
+    sync          Sync Vibe config from running server
+    install       Self-install yllama to PATH
+"#
 )]
 struct Cli {
     #[command(subcommand)]
@@ -65,6 +86,7 @@ EXAMPLES:
     yllama serve -ngl 35 -c 8192         # GPU layers + context size
     yllama start --temp 0.3 --top-p 0.9  # Foreground with generation params
 "#)]
+    #[command(alias = "bg")]
     Serve {
         /// Model name from cache (interactive selection if omitted and multiple models available)
         model: Option<String>,
@@ -78,6 +100,7 @@ Launch llama-server in the foreground (useful for debugging).
 
 Same flags as `yllama serve` — see `yllama serve --help` for full details.
 "#)]
+    #[command(alias = "fg")]
     Start {
         /// Model name from cache (interactive selection if omitted and multiple models available)
         model: Option<String>,
@@ -117,7 +140,7 @@ Same flags as `yllama serve` — see `yllama serve --help` for full details.
     },
     /// Install the yllama binary into a directory on your PATH
     Install {
-        /// Target directory (default: ~/bin)
+        /// Target directory (default: ~/.local/bin)
         #[arg(short, long)]
         dir: Option<PathBuf>,
     },
@@ -134,7 +157,9 @@ enum ModelsSubcommand {
     List,
     /// Register a HuggingFace GGUF URL or search by name
     Add {
-        /// HuggingFace URL or search query (e.g. 'gemma')
+        /// HuggingFace URL (e.g. 'https://huggingface.co/owner/repo/blob/main/model.gguf'),
+        /// owner/repo shorthand (auto-discovers GGUF files), or
+        /// free-text search query (e.g. 'gemma')
         url: String,
         /// Short name for this model (derived from filename if omitted)
         #[arg(short, long)]
