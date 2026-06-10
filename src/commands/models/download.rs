@@ -71,12 +71,12 @@ pub async fn run(name: &str) -> Result<()> {
     let total = if resume_offset > 0 && resp.status().as_u16() == 206 {
         resp.content_length().unwrap_or(0) + resume_offset
     } else {
-        resp.content_length()
+        resp.content_length().unwrap_or(0)
     };
 
     let total_downloaded = resume_offset;
-    let pb = if let Some(len) = total {
-        let pb = ProgressBar::new(len - total_downloaded);
+    let pb = if total > 0 {
+        let pb = ProgressBar::new(total - total_downloaded);
         pb.set_style(
             ProgressStyle::default_bar()
                 .template(

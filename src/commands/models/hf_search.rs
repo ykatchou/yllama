@@ -105,15 +105,6 @@ pub async fn pick_gguf_url(model_id: &str) -> Result<String> {
             .interact()?;
         gguf_files[sel].clone()
     };
-        gguf_files.into_iter().next().unwrap()
-    } else {
-        let sel = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(format!("Select a GGUF file from '{}'", resolved_id))
-            .items(&gguf_files)
-            .default(0)
-            .interact()?;
-        gguf_files[sel].clone()
-    };
 
     Ok(format!(
         "https://huggingface.co/{}/resolve/main/{}",

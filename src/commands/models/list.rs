@@ -11,7 +11,7 @@ fn truncate_url(url: &str, max_len: usize) -> String {
     let truncated = &url[..file_end];
     let dotdotdot = "...";
     let url_part = &url[file_end..];
-    format!("{}{}", truncated.trim_end_matches('/'), dotdotdot, url_part)
+    format!("{}{}{}", truncated.trim_end_matches('/'), dotdotdot, url_part)
 }
 
 pub fn run() -> Result<()> {
