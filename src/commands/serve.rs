@@ -11,7 +11,7 @@ pub async fn run(
     if foreground {
         // Set up signal handler so PID file is cleaned on Ctrl-C
         let pid_cleanup = llamacpp::pid_path();
-        ctrlc::set_handler(move || {
+        let _ = ctrlc::set_handler(move || {
             let _ = std::fs::remove_file(&pid_cleanup);
             std::process::exit(0);
         });
