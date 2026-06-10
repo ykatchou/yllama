@@ -1,97 +1,86 @@
 # yllama
 
-A CLI tool for managing your local AI stack: **llama.cpp** (inference), **GGUF models**, and **Vibe** (editor).
+A local AI stack manager for developers: one CLI to download GGUF models, run llama.cpp, and integrate with your favorite AI editor.
 
-## Quick Start
-
-```bash
-# Register a model from HuggingFace
+```
 yllama models add unsloth/Qwen3.6-35B-A3B-GGUF
-
-# Download it
 yllama models download qwen3.6-35b-a3b
-
-# Start the server (or use serve for background mode)
-yllama start
-yllama serve
-yllama serve -ngl 35 -c 8192   # GPU layers + context size
+yllama serve -ngl 35 -c 8192
 ```
 
-## Features
+## What it does
 
-- **Model Management**: Register, download, and manage GGUF models from HuggingFace.
-- **Interactive Selection**: Multiple models downloaded? Pick one with a terminal menu.
-- **Server Management**: Start llama.cpp as a foreground process (for debugging) or background daemon.
-- **Vibe Integration**: Launch Vibe with automatic server startup and config sync.
-- **Claude Code Integration**: Use Claude Code with your local llama.cpp server.
-- **LiteLLM Config**: Generate a LiteLLM proxy config from your running server.
+| Workflow          | Before yllama                          | With yllama                   |
+|-------------------|----------------------------------------|-------------------------------|
+| Get a model       | Search HuggingFace → copy URL → download manually | `yllama models add <url>`     |
+| Start inference   | Spawn server, manage PID, health-check | `yllama serve`                |
+| Editor integration| Manually sync host/port in every config | `yllama vibe` (auto-starts + syncs) |
+| LiteLLM proxy     | Write YAML by hand                     | `yllama litellm`              |
+
+## Quick start
+
+```bash
+# Register, download, and go
+yllama models add <hf-url>
+yllama models download <name>
+yllama serve                        # auto-selects your model
+```
 
 ## Commands
 
-### Model Management
+### Models
 
-```bash
-yllama models list                          # List all registered models
-yllama models add <url>                     # Register a GGUF URL (supports HF repo URLs, owner/repo shorthand, or search queries)
-yllama models download <name>               # Download a registered model with progress bar
-yllama models delete <name>                 # Remove a model from cache
+```
+yllama models list                  # show cached models
+yllama models add <url>             # register a GGUF model (HF repo URLs, owner/repo, or search)
+yllama models download <name>       # download with progress bar
+yllama models delete <name>         # remove from disk and registry
 ```
 
-### Server Management
+### Server
 
-```bash
-yllama serve [model] [-- <flags>]           # Start llama-server as a background daemon
-yllama start [model] [-- <flags>]           # Start llama-server in the foreground (for debugging)
-yllama stop                                 # Stop the running llama-server
-yllama attach                               # Attach to the running server's log output
+```
+yllama start [model] [-- <flags>]   # foreground (debug-friendly)
+yllama serve [model] [-- <flags>]   # background daemon
+yllama stop                         # kill the running server
+yllama attach                       # tail the server log
 ```
 
-**Extra flags** are forwarded directly to llama-server:
+Extra flags are forwarded verbatim to `llama-server` (`-ngl`, `-c`, `--temp`, etc.).
 
-| Category     | Flags                                              |
-|-------------|----------------------------------------------------|
-| GPU         | `-ngl <N>`, `--split-mode`, `--tensor-split`      |
-| Performance | `-t/--threads`, `-b/--batch-size`, `-c/--ctx-size` |
-| Generation  | `--temp`, `--top-k`, `--top-p`, `--seed`           |
-| Advanced    | `--flash-attn`, `--rope-scaling`, `--kv-offload`   |
+### Integrations
 
-See `yllama serve --help` for the full reference.
-
-### AI Editor Integration
-
-```bash
-yllama vibe [folder] [-- <vibe-args>]       # Launch Vibe (auto-starts server, syncs config)
-yllama claude [folder] [-- <args>]          # Launch Claude Code with local llama.cpp
-yllama sync                                 # Sync ~/.vibe/config.toml from the running server
-yllama litellm                              # Generate a LiteLLM proxy config
+```
+yllama vibe [folder] [-- <args>]    # launch Vibe (auto-starts server, syncs config)
+yllama claude [folder] [-- <args>]  # launch Claude Code with local llama.cpp
+yllama sync                         # sync running server into ~/.vibe/config.toml
+yllama litellm [--output <path>]    # generate LiteLLM proxy YAML
 ```
 
-### Utilities
+### Utility
 
-```bash
-yllama install [--dir PATH]                 # Install yllama binary into a PATH directory
+```
+yllama install [--dir PATH]         # install the binary to PATH
 ```
 
-## Model Selection
+## Model selection
 
-When no model is specified to `serve`, `start`, `vibe`, or `claude`:
-
-- **0 downloaded**: Shows an error.
-- **1 downloaded**: Uses it silently.
-- **2+ downloaded**: An interactive menu appears — pick a model to use.
-  - Choose **"Set as default"** to persist your choice. Future invocations will skip the menu and use the default directly.
+- **0 models** — error with a helpful message
+- **1 model** — used automatically
+- **2+ models** — interactive TUI picker; choose "Set as default" to persist
 
 ## Configuration
 
-Server settings (host, port, llama-server binary path) are stored in `~/.yllama/config.toml`.
+| File                          | Contents                                    |
+|-------------------------------|---------------------------------------------|
+| `~/.yllama/config.toml`       | server host, port, binary path              |
+| `~/.yllama/models/manifest.json` | registered models, download status, extra flags |
 
-Model registry (names, URLs, download status, extra flags) is stored in `~/.yllama/models/manifest.json`.
-
-## Installation
+## Install
 
 ```bash
-yllama install                              # Installs yllama to ~/bin (default)
-yllama install --dir ~/.local/bin           # Or specify a custom directory
+cargo install --path .
+yllama install --dir ~/.local/bin   # or any PATH directory
 ```
 
 ## License
