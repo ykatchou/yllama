@@ -14,6 +14,21 @@ pub async fn run(name: &str) -> Result<()> {
         .clone();
 
     let dest = manifest::model_path(&entry);
+    let tmp_path = dest.with_extension("gguf.tmp");
+
+    // Check for existing .gguf.tmp — offer resume info
+    if tmp_path.exists() {
+        if let Ok(meta) = tokio::fs::metadata(&tmp_path).await {
+            println!(
+                "Resuming '{name}' — {} already downloaded, {} remaining",
+                manifest::format_bytes(meta.len()),
+                manifest::format_bytes(
+                    entry.size_bytes.unwrap_or(0).saturating_sub(meta.len())
+                )
+            );
+        }
+    }
+
     if entry.downloaded && dest.exists() {
         println!(
             "Model '{name}' is already downloaded at {}",
@@ -27,8 +42,23 @@ pub async fn run(name: &str) -> Result<()> {
     let client = reqwest::Client::builder()
         .user_agent("yllama/0.1")
         .build()?;
-    let resp = client
-        .get(&entry.hf_url)
+
+    // Build the request with Range header if resuming
+    let mut request = client.get(&entry.hf_url);
+    let resume_offset = if tmp_path.exists() {
+        tokio::fs::metadata(&tmp_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0)
+    } else {
+        0
+    };
+
+    if resume_offset > 0 {
+        request = request.header("Range", format!("bytes={}-", resume_offset));
+    }
+
+    let resp = request
         .send()
         .await
         .with_context(|| format!("GET {}", entry.hf_url))?;
@@ -37,14 +67,26 @@ pub async fn run(name: &str) -> Result<()> {
         bail!("Download failed: HTTP {}", resp.status());
     }
 
-    let total = resp.content_length();
+    // If resuming, the server returns 206 with Content-Range
+    let total = if resume_offset > 0 && resp.status().as_u16() == 206 {
+        resp.content_length().unwrap_or(0) + resume_offset
+    } else {
+        resp.content_length()
+    };
+
+    let total_downloaded = resume_offset;
     let pb = if let Some(len) = total {
-        let pb = ProgressBar::new(len);
+        let pb = ProgressBar::new(len - total_downloaded);
         pb.set_style(
             ProgressStyle::default_bar()
                 .template(
-                    "{msg}\n[{bar:50.cyan/blue}] {bytes}/{total_bytes} \
-                     ({bytes_per_sec}, eta {eta})",
+                    if resume_offset > 0 {
+                        "{msg}\n[{bar:50.cyan/blue}] {bytes}/{total_bytes} \
+                         ({bytes_per_sec}, eta {eta})"
+                    } else {
+                        "{msg}\n[{bar:50.cyan/blue}] {bytes}/{total_bytes} \
+                         ({bytes_per_sec}, eta {eta})"
+                    },
                 )
                 .unwrap()
                 .progress_chars("=> "),
@@ -63,10 +105,18 @@ pub async fn run(name: &str) -> Result<()> {
     };
 
     std::fs::create_dir_all(manifest::models_dir())?;
-    let tmp_path = dest.with_extension("gguf.tmp");
-    let mut file = tokio::fs::File::create(&tmp_path)
-        .await
-        .with_context(|| format!("creating {}", tmp_path.display()))?;
+    let mut file = if resume_offset > 0 {
+        tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&tmp_path)
+            .await
+            .with_context(|| format!("opening {}", tmp_path.display()))?
+    } else {
+        tokio::fs::File::create(&tmp_path)
+            .await
+            .with_context(|| format!("creating {}", tmp_path.display()))?
+    };
 
     let mut stream = resp.bytes_stream();
     while let Some(chunk) = stream.next().await {

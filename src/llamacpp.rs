@@ -98,7 +98,7 @@ pub fn spawn_foreground(
 
 pub fn kill_server() -> Result<()> {
     match read_pid() {
-        None => bail!("No PID file found — is llama-server running?"),
+        None => bail!("No PID file found — is llama-server running? Start it with `yllama serve`."),
         Some(pid) => {
             let status = std::process::Command::new("kill")
                 .arg(pid.to_string())
