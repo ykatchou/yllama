@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+mod deps;
 mod llamacpp;
 mod manifest;
 mod vibe_config;
@@ -54,58 +55,133 @@ MODEL:
 
 EXTRA FLAGS (forwarded verbatim to llama-server):
     GPU
-      -ngl <N>          Number of GPU layers (e.g., -ngl 35)
-      --split-mode <m>  Split mode: none, layer, row, tensor
-      --tensor-split <f> Fraction of VRAM per GPU (e.g., --tensor-split 0.7,0.3,0)
+      -ngl <N>              Number of GPU layers (e.g., -ngl 35)
+      --split-mode <m>      Split mode: none, layer, row, tensor
+      --tensor-split <f>    Fraction of VRAM per GPU (e.g., --tensor-split 0.7,0.3,0)
+      --rope-scaling <m>    RoPE scaling: none, linear, yarn
+      --freq-params <f>     RoPE frequency params: none, linear, yarn, linear+yarn
+      --offload-kv <b>      Offload KV cache: 0=off, 1=on, 2=auto (half/half of layers in VRAM)
 
     PERFORMANCE
-      -t/--threads <N>  CPU threads (auto-detected if omitted)
+      -t/--threads <N>      CPU threads (auto-detected if omitted)
       -b/--batch-size <N>   Logical processing batch size (default: 2048)
-      -c/--ctx-size <N>   Context window size (e.g., -c 8192)
-      --ubatch-size <N>   Physical unrolling batch size (default: 512)
+      -c/--ctx-size <N>     Context window size (e.g., -c 8192)
+      --ubatch-size <N>     Physical unrolling batch size (default: 512)
+      --batched             Process multiple prompts in parallel
 
     GENERATION
-      --temp <f>      Sampling temperature (default: 0.8)
-      --top-k <N>     Top-k sampling (default: 40)
-      --top-p <f>     Top-p sampling (default: 0.95)
-      --min-p <f>     Min-p sampling (default: 0.05)
-      --seed <N>      RNG seed (default: random)
+      --temp <f>            Sampling temperature (default: 0.8)
+      --top-k <N>           Top-k sampling (default: 40)
+      --top-p <f>           Top-p sampling (default: 0.95)
+      --min-p <f>           Min-p sampling (default: 0.05)
+      --xtc-p <f>           XTC probability threshold (default: 0.0)
+      --typical-p <f>       Locally typical sampling parameter (default: 1.0)
+      --repeat-penalty <f>  Repeat penalty (default: 1.1)
+      --presence-penalty <f> Presence penalty (default: 0.0)
+      --frequency-penalty <f> Frequency penalty (default: 0.0)
+      --mirostat <N>        Mirostat sampling (0=off, 1=mirostat, 2=mirostat 2.0)
+      --mirostat-ta <f>     Mirostat target alpha (default: 0.1)
+      --mirostat-tau <f>    Mirostat tau (default: 5.0)
+      --seed <N>            RNG seed (default: random, use -1 for time-based)
+      --logit-bias <pat>    Logit bias: -1000..1000, or <token_hex>:<bias>
+
+    CONTEXT & SLOTS
+      --slot-prompt <str>   Custom slot prompt
+      --keep <N>            Keep model in memory after use (seconds)
+      --no-ctx-drain        Disable context drain after use
+      --log-idle            Log idle time in seconds
+      --flush-logs          Flush logs to disk
 
     ADVANCED
       --flash-attn          Enable Flash Attention
-      --rope-scaling <m>    RoPE scaling: none, linear, yarn
       --kv-offload          Offload KV cache to CPU
       --mlock               Lock model in RAM
       --mmap                Memory-map model file (default)
       --no-mmap             Disable memory-mapping
+      --no-pos-emb          Disable positional embeddings
+      --no-cuda              Disable CUDA
+      --no-ascend            Disable Ascend
       --lora <path>         Load a LoRA adapter
+      --base <url>          Base model for LoRA fusion
+      --log-prefix <str>    Log prefix
+      --log-disable         Disable logging
+      --log-only            Log only --log-prefix
+      --log-no-meta         Don't log metadata
+      --verbose             Verbose output (stdout)
+      --host <ip>           Bind to IP (default: 127.0.0.1)
+      --port <N>            Port (default: 8080)
 
 EXAMPLES:
     yllama serve                         # Use first/default downloaded model
     yllama serve my-model                # Use specific model
-    yllama serve -ngl 35 -c 8192         # GPU layers + context size
-    yllama start --temp 0.3 --top-p 0.9  # Foreground with generation params
+    yllama serve my-model -- -ngl 35     # Use specific model with GPU layers
+    yllama start -- -ngl 35 -c 8192      # Foreground with GPU + context size
 "#)]
     #[command(alias = "bg")]
     Serve {
         /// Model name from cache (interactive selection if omitted and multiple models available)
         model: Option<String>,
-        /// Extra flags forwarded verbatim to llama-server (e.g. -ngl 35 -c 8192)
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        /// Extra flags forwarded verbatim to llama-server
+        /// Use `--` to separate flags from the model name (e.g. `yllama serve model1 -- -ngl 35`)
+        #[arg(last = true)]
         extra_args: Vec<String>,
     },
     /// Launch llama-server in the foreground (useful for debugging)
     #[command(long_about = r#"
 Launch llama-server in the foreground (useful for debugging).
 
-Same flags as `yllama serve` — see `yllama serve --help` for full details.
+EXTRA FLAGS (forwarded verbatim to llama-server):
+    GPU
+      -ngl <N>              Number of GPU layers (e.g., -ngl 35)
+      --split-mode <m>      Split mode: none, layer, row, tensor
+      --tensor-split <f>    Fraction of VRAM per GPU (e.g., --tensor-split 0.7,0.3,0)
+      --rope-scaling <m>    RoPE scaling: none, linear, yarn
+      --freq-params <f>     RoPE frequency params: none, linear, yarn, linear+yarn
+      --offload-kv <b>      Offload KV cache: 0=off, 1=on, 2=auto
+
+    PERFORMANCE
+      -t/--threads <N>      CPU threads (auto-detected if omitted)
+      -b/--batch-size <N>   Logical processing batch size (default: 2048)
+      -c/--ctx-size <N>     Context window size (e.g., -c 8192)
+      --ubatch-size <N>     Physical unrolling batch size (default: 512)
+      --batched             Process multiple prompts in parallel
+
+    GENERATION
+      --temp <f>            Sampling temperature (default: 0.8)
+      --top-k <N>           Top-k sampling (default: 40)
+      --top-p <f>           Top-p sampling (default: 0.95)
+      --min-p <f>           Min-p sampling (default: 0.05)
+      --xtc-p <f>           XTC probability threshold (default: 0.0)
+      --typical-p <f>       Locally typical sampling parameter (default: 1.0)
+      --repeat-penalty <f>  Repeat penalty (default: 1.1)
+      --presence-penalty <f> Presence penalty (default: 0.0)
+      --frequency-penalty <f> Frequency penalty (default: 0.0)
+      --mirostat <N>        Mirostat sampling (0=off, 1=mirostat, 2=mirostat 2.0)
+      --mirostat-ta <f>     Mirostat target alpha (default: 0.1)
+      --mirostat-tau <f>    Mirostat tau (default: 5.0)
+      --seed <N>            RNG seed (default: random)
+      --logit-bias <pat>    Logit bias: <token_hex>:<bias>
+
+    CONTEXT & SLOTS
+      --slot-prompt <str>   Custom slot prompt
+      --keep <N>            Keep model in memory after use (seconds)
+      --no-ctx-drain        Disable context drain after use
+
+    ADVANCED
+      --flash-attn          Enable Flash Attention
+      --kv-offload          Offload KV cache to CPU
+      --mlock               Lock model in RAM
+      --mmap                Memory-map model file (default)
+      --no-mmap             Disable memory-mapping
+      --lora <path>         Load a LoRA adapter
 "#)]
     #[command(alias = "fg")]
     Start {
         /// Model name from cache (interactive selection if omitted and multiple models available)
         model: Option<String>,
-        /// Extra flags forwarded verbatim to llama-server (e.g. -ngl 35 -c 8192)
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        /// Extra flags forwarded verbatim to llama-server
+        /// Use `--` to separate flags from the model name (e.g. `yllama start -- -ngl 35`)
+        #[arg(last = true)]
         extra_args: Vec<String>,
     },
     /// Stop the running llama-server
@@ -164,6 +240,9 @@ enum ModelsSubcommand {
         /// Short name for this model (derived from filename if omitted)
         #[arg(short, long)]
         name: Option<String>,
+        /// Download the model immediately after registering it
+        #[arg(short, long)]
+        download: bool,
     },
     /// Download a registered model with a progress bar
     Download {
@@ -214,8 +293,8 @@ async fn main() -> Result<()> {
             ModelsSubcommand::List => {
                 commands::models::list::run()?;
             }
-            ModelsSubcommand::Add { url, name } => {
-                commands::models::add::run(&url, name.as_deref()).await?;
+            ModelsSubcommand::Add { url, name, download } => {
+                commands::models::add::run(&url, name.as_deref(), download).await?;
             }
             ModelsSubcommand::Download { name } => {
                 commands::models::download::run(&name).await?;

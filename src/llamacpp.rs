@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
 
 use crate::config::{yllama_dir, Config};
+use crate::deps;
 
 pub fn pid_path() -> PathBuf {
     yllama_dir().join("llamacpp.pid")
@@ -58,6 +59,14 @@ pub fn spawn_daemon(cfg: &Config, model_path: &Path, extra_args: &[String]) -> R
     use std::process::Stdio;
     use std::fs::OpenOptions;
 
+    // Check that the binary exists before trying to spawn
+    deps::check_binary(&cfg.server_bin).with_context(|| {
+        format!(
+            "llama-server binary not found. \
+             yllama serve only requires llama.cpp — integrations (vibe, claude) need more."
+        )
+    })?;
+
     let mut cmd = base_cmd(cfg, model_path, extra_args);
     let log_file = OpenOptions::new()
         .create(true)
@@ -91,6 +100,14 @@ pub fn spawn_foreground(
     model_path: &Path,
     extra_args: &[String],
 ) -> Result<std::process::Child> {
+    // Check that the binary exists before trying to spawn
+    deps::check_binary(&cfg.server_bin).with_context(|| {
+        format!(
+            "llama-server binary not found. \
+             yllama start only requires llama.cpp — integrations (vibe, claude) need more."
+        )
+    })?;
+
     base_cmd(cfg, model_path, extra_args)
         .spawn()
         .with_context(|| format!("launching {}", cfg.server_bin))

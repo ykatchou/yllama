@@ -2,6 +2,7 @@ use anyhow::{bail, Result};
 
 use crate::manifest::{self, ModelEntry};
 use crate::commands::models::hf_search;
+use crate::commands::models::download;
 use dialoguer::{theme::ColorfulTheme, Select};
 
 /// Returns true for `owner/repo` shorthand (no scheme, exactly one `/`, no spaces).
@@ -23,7 +24,7 @@ fn hf_repo_model_id(url: &str) -> Option<String> {
     }
 }
 
-pub async fn run(input: &str, name_override: Option<&str>) -> Result<()> {
+pub async fn run(input: &str, name_override: Option<&str>, download_flag: bool) -> Result<()> {
     let mut download_url = input.to_string();
 
     if let Some(model_id) = hf_repo_model_id(input) {
@@ -93,8 +94,8 @@ pub async fn run(input: &str, name_override: Option<&str>) -> Result<()> {
 
     entries.push(ModelEntry {
         name: name.clone(),
-        hf_url: download_url,
-        filename,
+        hf_url: download_url.clone(),
+        filename: filename.clone(),
         downloaded: false,
         size_bytes: None,
         extra_args: vec![],
@@ -102,7 +103,15 @@ pub async fn run(input: &str, name_override: Option<&str>) -> Result<()> {
     });
     manifest::save(&entries)?;
     println!("Added model '{name}'.");
-    println!("Run `yllama models download {name}` to download it.");
+
+    if download_flag {
+        println!("Downloading '{name}' now…\n");
+        download::run(&name).await?;
+        println!("\nModel '{name}' is ready. Run `yllama serve` to start inference.");
+    } else {
+        println!("Run `yllama models download {name}` to download it.");
+    }
+
     Ok(())
 }
 

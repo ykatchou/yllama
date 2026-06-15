@@ -17,6 +17,50 @@ yllama serve -ngl 35 -c 8192
 | Editor integration| Manually sync host/port in every config | `yllama vibe` (auto-starts + syncs) |
 | LiteLLM proxy     | Write YAML by hand                     | `yllama litellm`              |
 
+## Prerequisites
+
+yllama delegates inference to **[llama.cpp](https://github.com/ggerganov/llama.cpp)**. Editor integrations require additional tools.
+
+### llama.cpp (`llama-server`)
+
+**macOS**
+```bash
+brew install llama-cpp
+```
+
+**Linux**
+```bash
+# Debian / Ubuntu
+sudo apt install llama.cpp
+
+# Fedora
+sudo dnf install llama.cpp
+```
+
+**Verify:** `llama-server --help` should display usage info.
+
+### Claude Code (optional — needed for `yllama claude`)
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+**Linux:** If npm installs to a custom prefix, add it to your PATH:
+```bash
+export PATH="$(npm config get prefix)/bin:$PATH"
+```
+
+**Verify:** `claude --version` should show the installed version.
+
+### Vibe (optional — needed for `yllama vibe`)
+
+Install [Vibe](https://www.vibe.dev) from the official source. After installation, ensure the binary is on your PATH (create a symlink if needed):
+```bash
+ln -s "/Applications/Vibe.app/Contents/MacOS/Vibe" ~/.local/bin/vibe
+```
+
+---
+
 ## Quick start
 
 ```bash
@@ -26,6 +70,13 @@ yllama models download <name>
 yllama serve                        # auto-selects your model
 ```
 
+Or skip the two-step add/download with `--download`:
+
+```bash
+yllama models add <hf-url> --download
+yllama serve
+```
+
 ## Commands
 
 ### Models
@@ -33,6 +84,7 @@ yllama serve                        # auto-selects your model
 ```
 yllama models list                  # show cached models
 yllama models add <url>             # register a GGUF model (HF repo URLs, owner/repo, or search)
+yllama models add <url> --download  # register and download in one step
 yllama models download <name>       # download with progress bar
 yllama models delete <name>         # remove from disk and registry
 ```
@@ -67,7 +119,8 @@ yllama install [--dir PATH]         # install the binary to PATH
 
 - **0 models** — error with a helpful message
 - **1 model** — used automatically
-- **2+ models** — interactive TUI picker; choose "Set as default" to persist
+- **default set** — used automatically (no picker)
+- **2+ models, no default** — interactive TUI picker
 
 ## Configuration
 
