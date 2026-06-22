@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 
-use crate::{commands::select_model, config::Config, deps, llamacpp, manifest};
+use crate::{commands::select_model, config::Config, deps, llamacpp, manifest, vibe_config};
 
 pub async fn run(cfg: &Config, folder: Option<PathBuf>, extra_args: &[String]) -> Result<()> {
     let folder = folder.unwrap_or_else(|| std::env::current_dir().expect("no cwd"));
@@ -23,9 +23,13 @@ pub async fn run(cfg: &Config, folder: Option<PathBuf>, extra_args: &[String]) -
         println!(" done.");
         entry.name
     } else {
-        // Server is already running — get the model name without re-picking
+        // Server is already running — query live model from server
+        let base_url = format!("http://{}:{}", cfg.host, cfg.port);
+        let models = vibe_config::fetch_models(&base_url).await?;
         let entries = manifest::load()?;
-        select_model::select_model(&entries)?.0.name
+        let ids: Vec<&str> = models.iter().filter_map(|m| m["id"].as_str()).collect();
+        manifest::resolve_running_model_name(&ids, &entries)
+            .context("no model found on running server")?
     };
 
     let base_url = format!("http://{}:{}", cfg.host, cfg.port);

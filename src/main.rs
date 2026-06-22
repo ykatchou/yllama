@@ -6,8 +6,18 @@ mod manifest;
 mod vibe_config;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[clap(rename_all = "lower")]
+enum ReasoningLevel {
+    Off,
+    Low,
+    Medium,
+    High,
+    Max,
+}
 
 #[derive(Parser)]
 #[command(
@@ -84,6 +94,7 @@ EXTRA FLAGS (forwarded verbatim to llama-server):
       --mirostat-tau <f>    Mirostat tau (default: 5.0)
       --seed <N>            RNG seed (default: random, use -1 for time-based)
       --logit-bias <pat>    Logit bias: -1000..1000, or <token_hex>:<bias>
+      --tk/--thinking <lvl> Reasoning level: off|low|medium|high|max (default: off)
 
     CONTEXT & SLOTS
       --slot-prompt <str>   Custom slot prompt
@@ -121,6 +132,12 @@ EXAMPLES:
     Serve {
         /// Model name from cache (interactive selection if omitted and multiple models available)
         model: Option<String>,
+        /// Reasoning/thinking level forwarded to llama-server as `--reasoning`.
+        /// `off` disables reasoning; `low`, `medium`, `high`, `max` enable it with
+        /// the corresponding effort (sent as `--reasoning on` — the OpenAI API
+        /// parameter `reasoning_effort` overrides this per-request).
+        #[arg(long, visible_alias = "tk", value_enum, default_value = "off")]
+        thinking: ReasoningLevel,
         /// Extra flags forwarded verbatim to llama-server
         /// Use `--` to separate flags from the model name (e.g. `yllama serve model1 -- -ngl 35`)
         #[arg(last = true)]
@@ -161,6 +178,7 @@ EXTRA FLAGS (forwarded verbatim to llama-server):
       --mirostat-tau <f>    Mirostat tau (default: 5.0)
       --seed <N>            RNG seed (default: random)
       --logit-bias <pat>    Logit bias: <token_hex>:<bias>
+      --tk/--thinking <lvl> Reasoning level: off|low|medium|high|max (default: off)
 
     CONTEXT & SLOTS
       --slot-prompt <str>   Custom slot prompt
@@ -179,6 +197,12 @@ EXTRA FLAGS (forwarded verbatim to llama-server):
     Start {
         /// Model name from cache (interactive selection if omitted and multiple models available)
         model: Option<String>,
+        /// Reasoning/thinking level forwarded to llama-server as `--reasoning`.
+        /// `off` disables reasoning; `low`, `medium`, `high`, `max` enable it with
+        /// the corresponding effort (sent as `--reasoning on` — the OpenAI API
+        /// parameter `reasoning_effort` overrides this per-request).
+        #[arg(long, visible_alias = "tk", value_enum, default_value = "off")]
+        thinking: ReasoningLevel,
         /// Extra flags forwarded verbatim to llama-server
         /// Use `--` to separate flags from the model name (e.g. `yllama start -- -ngl 35`)
         #[arg(last = true)]
@@ -262,11 +286,11 @@ async fn main() -> Result<()> {
     let cfg = config::load()?;
 
     match cli.command {
-        Commands::Serve { model, extra_args } => {
-            commands::serve::run(&cfg, model.as_deref(), false, &extra_args).await?;
+        Commands::Serve { model, thinking, extra_args } => {
+            commands::serve::run(&cfg, model.as_deref(), false, thinking, &extra_args).await?;
         }
-        Commands::Start { model, extra_args } => {
-            commands::serve::run(&cfg, model.as_deref(), true, &extra_args).await?;
+        Commands::Start { model, thinking, extra_args } => {
+            commands::serve::run(&cfg, model.as_deref(), true, thinking, &extra_args).await?;
         }
         Commands::Stop => {
             commands::stop::run()?;

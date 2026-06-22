@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 
-use crate::{commands::select_model, config::Config, deps, llamacpp, manifest};
+use crate::{commands::select_model, config::Config, deps, llamacpp, manifest, vibe_config};
 
 pub async fn run(cfg: &Config, folder: Option<PathBuf>, extra_args: &[String]) -> Result<()> {
     let folder = folder.unwrap_or_else(|| std::env::current_dir().expect("no cwd"));
@@ -29,7 +29,10 @@ pub async fn run(cfg: &Config, folder: Option<PathBuf>, extra_args: &[String]) -
 
     // Get the model name for the --model flag
     let entries = manifest::load()?;
-    let model_name = select_model::select_model(&entries)?.0.name;
+    let models = vibe_config::fetch_models(&base_url).await.unwrap_or_default();
+    let ids: Vec<&str> = models.iter().filter_map(|m| m["id"].as_str()).collect();
+    let model_name = manifest::resolve_running_model_name(&ids, &entries)
+        .context("no model found on running server")?;
 
     // Sync vibe config so Claude Code can discover the model
     println!("Syncing configurations...");

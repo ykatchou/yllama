@@ -68,6 +68,26 @@ pub fn find_active_model(entries: &[ModelEntry]) -> Option<&ModelEntry> {
     entries.iter().find(|e| e.downloaded && model_path(e).exists())
 }
 
+/// Resolve the currently running model name from the server's `/v1/models` response.
+/// Falls back to `find_active_model` if no match is found.
+pub fn resolve_running_model_name(
+    live_model_ids: &[&str],
+    entries: &[ModelEntry],
+) -> Option<String> {
+    // Try to match a live model ID against manifest entries
+    for live_id in live_model_ids {
+        if let Some(entry) = entries.iter().find(|e| {
+            e.name == *live_id
+                || e.filename.contains(live_id)
+                || live_id.contains(&e.name)
+        }) {
+            return Some(entry.name.clone());
+        }
+    }
+    // Fallback: use the manifest's active model
+    find_active_model(entries).map(|e| e.name.clone())
+}
+
 /// Format bytes into a human-readable string (GB / MB / B).
 pub fn format_bytes(b: u64) -> String {
     const GB: u64 = 1_073_741_824;

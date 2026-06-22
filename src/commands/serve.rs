@@ -1,11 +1,12 @@
 use anyhow::{bail, Result};
 
-use crate::{config::Config, commands::select_model, llamacpp, manifest};
+use crate::{config::Config, commands::select_model, llamacpp, manifest, ReasoningLevel};
 
 pub async fn run(
     cfg: &Config,
     model_name: Option<&str>,
     foreground: bool,
+    thinking: ReasoningLevel,
     cli_extra_args: &[String],
 ) -> Result<()> {
     if foreground {
@@ -16,6 +17,16 @@ pub async fn run(
             std::process::exit(0);
         });
     }
+
+    // Check if server is already running before asking for model selection
+    if llamacpp::is_running(cfg).await {
+        println!(
+            "llama-server is already running on {}:{}",
+            cfg.host, cfg.port
+        );
+        return Ok(());
+    }
+
     let entries = manifest::load()?;
     let (entry, default_to_set) = match model_name {
         Some(name) => {
@@ -51,19 +62,16 @@ pub async fn run(
         );
     }
 
-    if llamacpp::is_running(cfg).await {
-        println!(
-            "llama-server is already running on {}:{}",
-            cfg.host, cfg.port
-        );
-        return Ok(());
-    }
-
     // Model-level defaults come first; CLI flags take precedence (appended last)
+    let reasoning_flag = match thinking {
+        ReasoningLevel::Off => vec!["--reasoning".to_string(), "off".to_string()],
+        _ => vec!["--reasoning".to_string(), "on".to_string()],
+    };
     let all_extra: Vec<String> = entry
         .extra_args
         .iter()
-        .chain(cli_extra_args)
+        .chain(reasoning_flag.iter())
+        .chain(cli_extra_args.iter())
         .cloned()
         .collect();
 
