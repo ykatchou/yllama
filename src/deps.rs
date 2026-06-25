@@ -19,6 +19,7 @@ fn install_instructions(bin: &str) -> String {
         "llama-server" | "llama-cpp" => llama_cpp_instructions(),
         "claude" | "claude-code" => claude_code_instructions(),
         "vibe" => vibe_instructions(),
+        "pi" => pi_instructions(),
         _ => format!("Install `{bin}` and ensure it is on your PATH."),
     }
 }
@@ -94,6 +95,21 @@ fn vibe_instructions() -> String {
     }
 }
 
+fn pi_instructions() -> String {
+    if cfg!(target_os = "macos") {
+        format!(
+            "pi:\n  \n  brew install @earendil-works/pi-coding-agent\n\
+             \n  or via npm:\n  \n  npm install -g @earendil-works/pi-coding-agent\n\
+             \n  Verify: `pi --help` should display usage info."
+        )
+    } else {
+        format!(
+            "pi:\n  \n  npm install -g @earendil-works/pi-coding-agent\n\
+             \n  Verify: `pi --help` should display usage info."
+        )
+    }
+}
+
 /// Check all known yllama dependencies and return a combined error if any are missing.
 #[allow(dead_code)]
 pub fn check_all() -> Result<()> {
@@ -135,5 +151,6 @@ mod tests {
         let _ = crate::deps::llama_cpp_instructions();
         let _ = crate::deps::claude_code_instructions();
         let _ = crate::deps::vibe_instructions();
+        let _ = crate::deps::pi_instructions();
     }
 }

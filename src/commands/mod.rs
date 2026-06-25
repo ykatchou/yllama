@@ -3,6 +3,7 @@ pub mod claude_code;
 pub mod install;
 pub mod litellm;
 pub mod models;
+pub mod pi;
 pub mod select_model;
 pub mod serve;
 pub mod stop;

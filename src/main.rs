@@ -41,6 +41,7 @@ COMMANDS:
   INTEGRATION
     vibe          Launch Vibe (auto-starts server + syncs config)
     claude        Launch Claude Code (alias: claude-code)
+    pi            Launch pi (auto-starts server + syncs config)
     litellm       Generate LiteLLM proxy config
     sync          Sync Vibe config from running server
     install       Self-install yllama to PATH
@@ -232,6 +233,15 @@ EXTRA FLAGS (forwarded verbatim to llama-server):
         extra_args: Vec<String>,
     },
 
+    /// Launch pi with the local llama.cpp server (auto-starts llama.cpp)
+    Pi {
+        /// Directory to open in pi (defaults to current directory)
+        folder: Option<PathBuf>,
+        /// Extra arguments forwarded verbatim to the pi binary
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        extra_args: Vec<String>,
+    },
+
     /// Generate a LiteLLM proxy config from the running server
     Litellm {
         /// Output file path (default: ./litellm_config.yaml)
@@ -306,6 +316,9 @@ async fn main() -> Result<()> {
         }
         Commands::ClaudeCode { folder, extra_args } => {
             commands::claude_code::run(&cfg, folder, &extra_args).await?;
+        }
+        Commands::Pi { folder, extra_args } => {
+            commands::pi::run(&cfg, folder, &extra_args).await?;
         }
         Commands::Litellm { output } => {
             commands::litellm::run(&cfg, output).await?;
