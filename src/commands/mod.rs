@@ -1,5 +1,6 @@
 pub mod attach;
 pub mod claude_code;
+pub mod hermes;
 pub mod install;
 pub mod litellm;
 pub mod models;

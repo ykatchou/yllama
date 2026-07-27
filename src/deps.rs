@@ -20,6 +20,7 @@ fn install_instructions(bin: &str) -> String {
         "claude" | "claude-code" => claude_code_instructions(),
         "vibe" => vibe_instructions(),
         "pi" => pi_instructions(),
+        "hermes" => hermes_instructions(),
         _ => format!("Install `{bin}` and ensure it is on your PATH."),
     }
 }
@@ -110,6 +111,21 @@ fn pi_instructions() -> String {
     }
 }
 
+fn hermes_instructions() -> String {
+    if cfg!(target_os = "macos") {
+        format!(
+            "Hermes Agent:\n  \n  pip install hermes-agent\n\
+             \n  or via git:\n  \n  git clone https://github.com/NousResearch/Hermes-Edge-CLI && cd Hermes-Edge-CLI && pip install -e .\n\
+             \n  Verify: `hermes --help` should display usage info."
+        )
+    } else {
+        format!(
+            "Hermes Agent:\n  \n  pip install hermes-agent\n\
+             \n  Verify: `hermes --help` should display usage info."
+        )
+    }
+}
+
 /// Check all known yllama dependencies and return a combined error if any are missing.
 #[allow(dead_code)]
 pub fn check_all() -> Result<()> {
@@ -152,5 +168,6 @@ mod tests {
         let _ = crate::deps::claude_code_instructions();
         let _ = crate::deps::vibe_instructions();
         let _ = crate::deps::pi_instructions();
+        let _ = crate::deps::hermes_instructions();
     }
 }
