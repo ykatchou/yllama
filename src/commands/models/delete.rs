@@ -17,6 +17,13 @@ pub fn run(name: &str) -> Result<()> {
         println!("No file on disk (already removed or never downloaded).");
     }
 
+    if let Some(draft_path) = manifest::draft_model_path(&entries[pos]) {
+        if draft_path.exists() {
+            std::fs::remove_file(&draft_path)?;
+            println!("Deleted {}", draft_path.display());
+        }
+    }
+
     entries.remove(pos);
     manifest::save(&entries)?;
     println!("Removed '{name}' from manifest.");

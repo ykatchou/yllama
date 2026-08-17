@@ -1,6 +1,7 @@
 mod commands;
 mod config;
 mod deps;
+mod gguf;
 mod llamacpp;
 mod manifest;
 mod vibe_config;
@@ -36,7 +37,16 @@ COMMANDS:
     models list   List all registered models
     models add    Register a model URL
     models download  Download a registered model
+    models sync   Backfill MTP detection for models registered before it existed
     models delete   Remove a model from cache
+
+  MTP (multi-token prediction / self-speculative decoding) is detected
+  automatically on `models add` — if the requested quant lacks built-in
+  MTP heads but an MTP-enabled sibling quant exists, you'll be offered
+  that instead (same size, no extra download). Enabled automatically at
+  serve time via `--spec-type draft-mtp` when available — no flags
+  needed. Run `models sync` to backfill detection for models added
+  before this existed.
 
   INTEGRATION
     vibe          Launch Vibe (auto-starts server + syncs config)
@@ -294,6 +304,8 @@ enum ModelsSubcommand {
         /// Model name as shown in `yllama models list`
         name: String,
     },
+    /// Backfill MTP detection for models registered before it existed
+    Sync,
     /// Delete a model from the cache and remove it from the manifest
     Delete {
         /// Model name as shown in `yllama models list`
@@ -349,6 +361,9 @@ async fn main() -> Result<()> {
             }
             ModelsSubcommand::Download { name } => {
                 commands::models::download::run(&name).await?;
+            }
+            ModelsSubcommand::Sync => {
+                commands::models::sync::run().await?;
             }
             ModelsSubcommand::Delete { name } => {
                 commands::models::delete::run(&name)?;

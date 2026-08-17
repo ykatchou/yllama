@@ -25,15 +25,16 @@ pub fn run() -> Result<()> {
     let status_w = 14usize;
     let size_w = 10usize;
     let default_w = 9usize; // "*default" or " " padding
+    let spec_w = 16usize;
     let url_w = 45usize;
 
     println!(
-        "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  URL",
-        "NAME", "STATUS", "SIZE", "DEFAULT",
+        "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  {:<spec_w$}  URL",
+        "NAME", "STATUS", "SIZE", "DEFAULT", "SPEC-DECODE",
     );
     println!(
         "{}",
-        "-".repeat(name_w + status_w + size_w + default_w + 14)
+        "-".repeat(name_w + status_w + size_w + default_w + spec_w + 16)
     );
 
     for e in &entries {
@@ -48,10 +49,21 @@ pub fn run() -> Result<()> {
         } else {
             " ".to_string()
         };
+        let spec_str = if e.mtp_builtin {
+            "mtp".to_string()
+        } else if e.draft_downloaded {
+            e.draft_spec_type
+                .clone()
+                .unwrap_or_else(|| "drafter".to_string())
+        } else if e.mtp_checked {
+            "-".to_string()
+        } else {
+            "unchecked".to_string()
+        };
         let url_display = truncate_url(&e.hf_url, url_w);
         println!(
-            "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  {}",
-            e.name, status, size, default_str, url_display,
+            "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  {:<spec_w$}  {}",
+            e.name, status, size, default_str, spec_str, url_display,
         );
     }
     Ok(())

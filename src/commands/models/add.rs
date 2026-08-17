@@ -1,9 +1,10 @@
 use anyhow::{bail, Result};
 
+use crate::gguf;
 use crate::manifest::{self, ModelEntry};
 use crate::commands::models::hf_search;
 use crate::commands::models::download;
-use dialoguer::{theme::ColorfulTheme, Select};
+use dialoguer::{theme::ColorfulTheme, Confirm, Select};
 
 /// Returns true for `owner/repo` shorthand (no scheme, exactly one `/`, no spaces).
 fn is_model_id(s: &str) -> bool {
@@ -85,12 +86,69 @@ pub async fn run(input: &str, name_override: Option<&str>, download_flag: bool) 
     };
 
     let mut entries = manifest::load()?;
-    if manifest::find(&entries, &name).is_some() {
-        bail!(
-            "Model '{name}' already in manifest. \
-             Use `yllama models list` to see all models."
-        );
+
+    if let Some(entry) = manifest::find(&entries, &name) {
+        // Model already registered — download if not already done.
+        if entry.downloaded {
+            println!("Model '{name}' already registered and downloaded.");
+        } else if download_flag {
+            println!("Model '{name}' already registered. Downloading now…\n");
+            download::run(&name).await?;
+            println!("\nModel '{name}' is ready. Run `yllama serve` to start inference.");
+        } else {
+            println!("Model '{name}' already registered. Run `yllama models download {name}` to download it.");
+        }
+        return Ok(());
     }
+
+    println!("Checking for MTP / speculative decoding support...");
+    let mut mtp_builtin = gguf::has_builtin_mtp(&download_url).await.unwrap_or(false);
+    let mut draft: Option<(String, String, String)> = None; // (url, filename, spec_type)
+    let repo_id = hf_search::repo_id_from_hf_url(&download_url);
+
+    if mtp_builtin {
+        println!("MTP: built-in heads detected — will enable automatically at serve time.");
+    } else if let Some(repo_id) = &repo_id {
+        if let Some(variant_url) = hf_search::find_mtp_variant_url(repo_id, &filename)
+            .await
+            .unwrap_or(None)
+        {
+            println!(
+                "MTP: an MTP-enabled variant of this exact quant is available \
+                 (self-speculative decoding, same size, no extra download)."
+            );
+            let use_variant = Confirm::with_theme(&ColorfulTheme::default())
+                .with_prompt("Download the MTP-enabled variant instead?")
+                .default(true)
+                .interact()?;
+            if use_variant {
+                download_url = variant_url;
+                mtp_builtin = true;
+            }
+        }
+    }
+
+    if !mtp_builtin {
+        if let Some(repo_id) = &repo_id {
+            draft = hf_search::find_drafter_in_repo(repo_id, &filename)
+                .await
+                .unwrap_or(None);
+        }
+        match &draft {
+            Some((_, draft_filename, spec_type)) => {
+                println!(
+                    "Speculative decoding: found drafter '{draft_filename}' ({spec_type}) \
+                     bundled with this model — will download alongside the main file."
+                );
+            }
+            None => println!("MTP / speculative decoding: not available for this model."),
+        }
+    }
+
+    let (draft_url, draft_filename, draft_spec_type) = draft.map_or(
+        (None, None, None),
+        |(u, f, t)| (Some(u), Some(f), Some(t)),
+    );
 
     entries.push(ModelEntry {
         name: name.clone(),
@@ -100,17 +158,19 @@ pub async fn run(input: &str, name_override: Option<&str>, download_flag: bool) 
         size_bytes: None,
         extra_args: vec![],
         default_model: None,
+        mtp_checked: true,
+        mtp_builtin,
+        draft_url,
+        draft_filename,
+        draft_spec_type,
+        draft_downloaded: false,
     });
     manifest::save(&entries)?;
     println!("Added model '{name}'.");
 
-    if download_flag {
-        println!("Downloading '{name}' now…\n");
-        download::run(&name).await?;
-        println!("\nModel '{name}' is ready. Run `yllama serve` to start inference.");
-    } else {
-        println!("Run `yllama models download {name}` to download it.");
-    }
+    println!("Downloading '{name}' now…\n");
+    download::run(&name).await?;
+    println!("\nModel '{name}' is ready. Run `yllama serve` to start inference.");
 
     Ok(())
 }

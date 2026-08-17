@@ -19,6 +19,32 @@ pub struct ModelEntry {
     /// Set interactively via `yllama serve` menu when multiple models exist.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_model: Option<String>,
+    /// Whether speculative-decoding support (MTP or a separate drafter file)
+    /// has been probed for this model yet. Old manifest entries default to
+    /// `false` so `yllama models sync` knows to backfill them.
+    #[serde(default)]
+    pub mtp_checked: bool,
+    /// True when the downloaded GGUF has MTP heads baked in (e.g. DeepSeek,
+    /// GLM, or a `-MTP-GGUF` variant of a Qwen model) — self-speculative
+    /// decoding is enabled automatically at serve time via `--spec-type
+    /// draft-mtp`, no extra file needed.
+    #[serde(default)]
+    pub mtp_builtin: bool,
+    /// Download URL for a separate speculative-decoding drafter GGUF bundled
+    /// in the same HF repo (e.g. Muse-Glimmer's `dflash-kquant.gguf`), if one
+    /// was found and the user opted to fetch it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_url: Option<String>,
+    /// Filename of the drafter GGUF, relative to `models_dir()`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_filename: Option<String>,
+    /// The `--spec-type` value the drafter requires (e.g. `draft-dflash`,
+    /// `draft-dspark`, `draft-eagle3`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_spec_type: Option<String>,
+    /// Whether the drafter GGUF has been downloaded.
+    #[serde(default)]
+    pub draft_downloaded: bool,
 }
 
 pub fn models_dir() -> PathBuf {
@@ -52,6 +78,12 @@ pub fn find<'a>(entries: &'a [ModelEntry], name: &str) -> Option<&'a ModelEntry>
 
 pub fn model_path(entry: &ModelEntry) -> PathBuf {
     models_dir().join(&entry.filename)
+}
+
+/// Path to the entry's separate drafter GGUF, if one is registered.
+/// Does not check whether the file has actually been downloaded yet.
+pub fn draft_model_path(entry: &ModelEntry) -> Option<PathBuf> {
+    entry.draft_filename.as_ref().map(|f| models_dir().join(f))
 }
 
 /// Return the active model: first, the user's marked default (if downloaded);

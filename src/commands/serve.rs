@@ -67,13 +67,38 @@ pub async fn run(
         ReasoningLevel::Off => vec!["--reasoning".to_string(), "off".to_string()],
         _ => vec!["--reasoning".to_string(), "on".to_string()],
     };
-    let all_extra: Vec<String> = entry
+    let mut all_extra: Vec<String> = entry
         .extra_args
         .iter()
         .chain(reasoning_flag.iter())
         .chain(cli_extra_args.iter())
         .cloned()
         .collect();
+
+    // Enable speculative decoding automatically when available, unless the
+    // user already asked for a specific speculative decoding setup themselves.
+    if !all_extra.iter().any(|a| a == "--spec-type") {
+        if entry.mtp_builtin {
+            println!("MTP: built-in heads detected — enabling draft-mtp speculative decoding.");
+            all_extra.push("--spec-type".to_string());
+            all_extra.push("draft-mtp".to_string());
+        } else if entry.draft_downloaded {
+            if let Some(draft_path) = manifest::draft_model_path(&entry) {
+                if let Some(spec_type) = &entry.draft_spec_type {
+                    if draft_path.exists() {
+                        println!(
+                            "Speculative decoding: using drafter '{}' ({spec_type}).",
+                            draft_path.display()
+                        );
+                        all_extra.push("--model-draft".to_string());
+                        all_extra.push(draft_path.to_string_lossy().into_owned());
+                        all_extra.push("--spec-type".to_string());
+                        all_extra.push(spec_type.clone());
+                    }
+                }
+            }
+        }
+    }
 
     if !all_extra.is_empty() {
         println!("Extra args: {}", all_extra.join(" "));
