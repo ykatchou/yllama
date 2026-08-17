@@ -107,19 +107,20 @@ pub async fn run(
     println!("Starting llama-server with model '{}'...", entry.name);
 
     if foreground {
-        let mut child = llamacpp::spawn_foreground(cfg, &model_path, &all_extra)?;
+        let child = llamacpp::spawn_foreground(cfg, &model_path, &all_extra)?;
         let pid = child.id();
         llamacpp::write_pid(pid)?;
         println!(
             "llama-server running in foreground (PID {pid}) — press Ctrl-C to stop"
         );
-        child.wait()?;
+        llamacpp::wait_foreground(child)?;
         llamacpp::clear_pid();
     } else {
-        let pid = llamacpp::spawn_daemon(cfg, &model_path, &all_extra)?;
+        let mut child = llamacpp::spawn_daemon(cfg, &model_path, &all_extra)?;
+        let pid = child.id();
         llamacpp::write_pid(pid)?;
         print!("llama-server started (PID {pid}), waiting for ready...");
-        llamacpp::wait_for_ready(cfg, 60).await?;
+        llamacpp::wait_for_ready(cfg, 60, &mut child).await?;
         println!(" ready at http://{}:{}", cfg.host, cfg.port);
     }
 
