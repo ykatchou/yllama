@@ -2,18 +2,6 @@ use anyhow::Result;
 
 use crate::manifest;
 
-fn truncate_url(url: &str, max_len: usize) -> String {
-    if url.len() <= max_len {
-        return url.to_string();
-    }
-    // Show the filename and ellipsize the middle
-    let file_end = url.len() - 40.min(url.len() - 1);
-    let truncated = &url[..file_end];
-    let dotdotdot = "...";
-    let url_part = &url[file_end..];
-    format!("{}{}{}", truncated.trim_end_matches('/'), dotdotdot, url_part)
-}
-
 pub fn run() -> Result<()> {
     let entries = manifest::load()?;
     if entries.is_empty() {
@@ -26,7 +14,6 @@ pub fn run() -> Result<()> {
     let size_w = 10usize;
     let default_w = 9usize; // "*default" or " " padding
     let spec_w = 16usize;
-    let url_w = 45usize;
 
     println!(
         "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  {:<spec_w$}  URL",
@@ -60,10 +47,9 @@ pub fn run() -> Result<()> {
         } else {
             "unchecked".to_string()
         };
-        let url_display = truncate_url(&e.hf_url, url_w);
         println!(
             "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  {:<spec_w$}  {}",
-            e.name, status, size, default_str, spec_str, url_display,
+            e.name, status, size, default_str, spec_str, e.hf_url,
         );
     }
     Ok(())
