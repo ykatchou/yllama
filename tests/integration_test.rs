@@ -267,14 +267,82 @@ output_price = 2.0
 // ---------------------------------------------------------------------------
 
 mod litellm_tests {
+    // Mirrors `src/commands/litellm.rs`. The generator there is private to the
+    // binary crate, so the shape under test is duplicated; keep the two in sync.
+    struct Preset {
+        suffix: &'static str,
+        thinking: bool,
+        reasoning_effort: Option<&'static str>,
+        temperature: f64,
+        top_p: f64,
+        top_k: i32,
+        min_p: f64,
+        presence_penalty: f64,
+        repeat_penalty: f64,
+    }
+
+    const PRESETS: &[Preset] = &[
+        Preset {
+            suffix: "think",
+            thinking: true,
+            reasoning_effort: Some("xhigh"),
+            temperature: 1.0,
+            top_p: 0.95,
+            top_k: 20,
+            min_p: 0.0,
+            presence_penalty: 0.0,
+            repeat_penalty: 1.0,
+        },
+        Preset {
+            suffix: "instruct",
+            thinking: false,
+            reasoning_effort: None,
+            temperature: 0.7,
+            top_p: 0.80,
+            top_k: 20,
+            min_p: 0.0,
+            presence_penalty: 1.5,
+            repeat_penalty: 1.0,
+        },
+    ];
+
+    fn alias_base(id: &str) -> &str {
+        id.rsplit('/')
+            .next()
+            .unwrap_or(id)
+            .strip_suffix(".gguf")
+            .unwrap_or_else(|| id.rsplit('/').next().unwrap_or(id))
+    }
+
     fn build_litellm_config(base_url: &str, model_ids: &[&str]) -> String {
         let mut lines = vec!["model_list:".to_string()];
         for id in model_ids {
-            lines.push(format!("  - model_name: {id}"));
+            let base = alias_base(id);
+            lines.push(format!("  - model_name: {base}"));
             lines.push("    litellm_params:".to_string());
-            lines.push(format!("      model: openai/{id}"));
+            lines.push(format!("      model: openai/{base}"));
             lines.push(format!("      api_base: {base_url}/v1"));
             lines.push("      api_key: \"none\"".to_string());
+
+            for p in PRESETS {
+                lines.push(format!("  - model_name: {base}-{}", p.suffix));
+                lines.push("    litellm_params:".to_string());
+                lines.push(format!("      model: openai/{base}"));
+                lines.push(format!("      api_base: {base_url}/v1"));
+                lines.push("      api_key: \"none\"".to_string());
+                lines.push(format!("      temperature: {:?}", p.temperature));
+                lines.push(format!("      top_p: {:?}", p.top_p));
+                lines.push(format!("      presence_penalty: {:?}", p.presence_penalty));
+                lines.push("      extra_body:".to_string());
+                lines.push(format!("        top_k: {}", p.top_k));
+                lines.push(format!("        min_p: {:?}", p.min_p));
+                lines.push(format!("        repeat_penalty: {:?}", p.repeat_penalty));
+                if let Some(effort) = p.reasoning_effort {
+                    lines.push(format!("        reasoning_effort: {effort}"));
+                }
+                lines.push("        chat_template_kwargs:".to_string());
+                lines.push(format!("          enable_thinking: {}", p.thinking));
+            }
         }
         lines.push(String::new());
         lines.push("litellm_settings:".to_string());
@@ -317,6 +385,102 @@ mod litellm_tests {
         let cfg = build_litellm_config("http://localhost:8080", &[]);
         assert!(cfg.contains("model_list:"));
         assert!(!cfg.contains("model_name:"));
+    }
+
+    // --- preset aliases -----------------------------------------------------
+
+    #[test]
+    fn emits_one_alias_per_preset_plus_passthrough() {
+        let cfg = build_litellm_config("http://localhost:8080", &["my-model"]);
+        assert!(cfg.contains("model_name: my-model\n"));
+        assert!(cfg.contains("model_name: my-model-think"));
+        assert!(cfg.contains("model_name: my-model-instruct"));
+        assert_eq!(cfg.matches("model_name:").count(), 3);
+    }
+
+    #[test]
+    fn presets_carry_opposing_thinking_flags() {
+        let cfg = build_litellm_config("http://localhost:8080", &["m"]);
+        assert!(cfg.contains("enable_thinking: true"));
+        assert!(cfg.contains("enable_thinking: false"));
+    }
+
+    #[test]
+    fn thinking_preset_uses_high_entropy_sampling() {
+        let cfg = build_litellm_config("http://localhost:8080", &["m"]);
+        let think = cfg.split("model_name: m-think").nth(1).unwrap();
+        let think = think.split("model_name:").next().unwrap();
+        assert!(think.contains("temperature: 1.0"));
+        assert!(think.contains("top_p: 0.95"));
+        // reasoning must not be penalised for repeating itself
+        assert!(think.contains("presence_penalty: 0.0"));
+        assert!(think.contains("reasoning_effort: xhigh"));
+    }
+
+    #[test]
+    fn instruct_preset_uses_tight_sampling_and_presence_penalty() {
+        let cfg = build_litellm_config("http://localhost:8080", &["m"]);
+        let inst = cfg.split("model_name: m-instruct").nth(1).unwrap();
+        assert!(inst.contains("temperature: 0.7"));
+        assert!(inst.contains("top_p: 0.8"));
+        assert!(inst.contains("presence_penalty: 1.5"));
+        // effort is meaningless without a thinking pass
+        assert!(!inst.contains("reasoning_effort"));
+    }
+
+    #[test]
+    fn both_presets_override_min_p_default() {
+        // llama.cpp defaults min_p to 0.05; both Qwen presets want 0.0
+        let cfg = build_litellm_config("http://localhost:8080", &["m"]);
+        assert_eq!(cfg.matches("min_p: 0.0").count(), 2);
+        assert!(!cfg.contains("min_p: 0.05"));
+    }
+
+    #[test]
+    fn llamacpp_only_params_live_in_extra_body() {
+        // `drop_params: true` would strip these at the top level
+        let cfg = build_litellm_config("http://localhost:8080", &["m"]);
+        for chunk in cfg.split("      extra_body:").skip(1) {
+            let chunk = chunk.split("  - model_name:").next().unwrap();
+            assert!(chunk.contains("top_k:"));
+            assert!(chunk.contains("min_p:"));
+            assert!(chunk.contains("chat_template_kwargs:"));
+        }
+        // OpenAI-standard params stay at the top level where LiteLLM sees them
+        assert!(cfg.contains("      temperature: "));
+        assert!(cfg.contains("      presence_penalty: "));
+    }
+
+    // --- alias derivation ---------------------------------------------------
+
+    #[test]
+    fn alias_base_strips_path_and_gguf_extension() {
+        assert_eq!(
+            alias_base("/Users/me/.yllama/models/Qwen3.8-27B-UD-Q4_K_M.gguf"),
+            "Qwen3.8-27B-UD-Q4_K_M"
+        );
+    }
+
+    #[test]
+    fn alias_base_passes_through_plain_ids() {
+        assert_eq!(alias_base("my-model"), "my-model");
+    }
+
+    #[test]
+    fn alias_base_handles_path_without_extension() {
+        assert_eq!(alias_base("/tmp/models/foo"), "foo");
+    }
+
+    #[test]
+    fn aliases_are_typeable_for_a_model_picker() {
+        // a full path would make `/model <alias>` unusable
+        let cfg = build_litellm_config(
+            "http://localhost:8080",
+            &["/Users/me/.yllama/models/Qwen3.8-27B-UD-Q4_K_M.gguf"],
+        );
+        assert!(cfg.contains("model_name: Qwen3.8-27B-UD-Q4_K_M-think"));
+        assert!(!cfg.contains("model_name: /Users"));
+        assert!(!cfg.contains("openai//"));
     }
 }
 
