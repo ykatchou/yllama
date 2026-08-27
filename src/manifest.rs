@@ -45,6 +45,12 @@ pub struct ModelEntry {
     /// Whether the drafter GGUF has been downloaded.
     #[serde(default)]
     pub draft_downloaded: bool,
+    /// For models registered from a file already on disk (`yllama models add
+    /// <path.gguf>`), the absolute path the user pointed at. The entry in
+    /// `models_dir()` is then a copy or a symlink of it, and there is nothing
+    /// to download — `hf_url` is empty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_source: Option<String>,
 }
 
 pub fn models_dir() -> PathBuf {
@@ -74,6 +80,11 @@ pub fn save(entries: &[ModelEntry]) -> Result<()> {
 
 pub fn find<'a>(entries: &'a [ModelEntry], name: &str) -> Option<&'a ModelEntry> {
     entries.iter().find(|e| e.name == name)
+}
+
+/// True for entries registered from a local file rather than a download.
+pub fn is_local(entry: &ModelEntry) -> bool {
+    entry.local_source.is_some()
 }
 
 pub fn model_path(entry: &ModelEntry) -> PathBuf {

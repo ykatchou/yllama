@@ -85,9 +85,32 @@ yllama serve
 yllama models list                  # show cached models
 yllama models add <url>             # register a GGUF model (HF repo URLs, owner/repo, or search)
 yllama models add <url> --download  # register and download in one step
+yllama models add <path.gguf>       # register a GGUF already on disk (symlinked)
+yllama models add <path.gguf> --copy  # ...copied into ~/.yllama/models instead
 yllama models download <name>       # download with progress bar
 yllama models delete <name>         # remove from disk and registry
 ```
+
+### Local GGUF files
+
+Point `models add` at a `.gguf` you already have and it is registered without
+any download:
+
+```bash
+yllama models add ~/models/Qwen3-30B-Q4_K_M.gguf            # --link (default)
+yllama models add ~/models/Qwen3-30B-Q4_K_M.gguf --copy     # duplicate it
+```
+
+| Flag              | What lands in `~/.yllama/models` | Notes |
+|-------------------|----------------------------------|-------|
+| `--link` (default)| a symlink                        | no extra disk; breaks if you move the original |
+| `--copy`          | a real copy                      | self-contained; instant and free on APFS/Btrfs (copy-on-write) |
+
+Either way the original file is never moved, and `models delete` only removes
+what's inside `~/.yllama/models`. GGUF metadata is scanned locally, so built-in
+MTP heads are still detected and enabled at serve time. `models list` shows
+`local: <path>` as the source, and flags an entry as `missing` if the file (or
+a symlink's target) is gone.
 
 ### Server
 

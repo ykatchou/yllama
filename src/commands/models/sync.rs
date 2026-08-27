@@ -22,7 +22,7 @@ pub async fn run() -> Result<()> {
     let mut needs_download: Vec<String> = Vec::new();
 
     for i in 0..entries.len() {
-        if entries[i].mtp_checked {
+        if entries[i].mtp_checked || manifest::is_local(&entries[i]) {
             continue;
         }
         checked += 1;

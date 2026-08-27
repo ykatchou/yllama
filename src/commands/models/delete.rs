@@ -10,11 +10,16 @@ pub fn run(name: &str) -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Model '{name}' not found in manifest."))?;
 
     let path = manifest::model_path(&entries[pos]);
-    if path.exists() {
+    // `symlink_metadata` so a link whose target is gone still gets cleaned up.
+    if std::fs::symlink_metadata(&path).is_ok() {
         std::fs::remove_file(&path)?;
         println!("Deleted {}", path.display());
     } else {
         println!("No file on disk (already removed or never downloaded).");
+    }
+
+    if let Some(source) = &entries[pos].local_source {
+        println!("Left the original file untouched: {source}");
     }
 
     if let Some(draft_path) = manifest::draft_model_path(&entries[pos]) {

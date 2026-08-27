@@ -99,6 +99,20 @@ pub async fn has_builtin_mtp(url: &str) -> Result<bool> {
     Ok(scan_for_nextn_key(&bytes))
 }
 
+/// Same MTP probe as [`has_builtin_mtp`], against a GGUF already on disk.
+/// Reads at most the first few MiB, so it costs nothing on a 30 GB model.
+pub fn has_builtin_mtp_local(path: &std::path::Path) -> Result<bool> {
+    use std::io::Read;
+
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("opening {}", path.display()))?;
+    let mut buf = Vec::new();
+    file.take(RANGE_BYTES)
+        .read_to_end(&mut buf)
+        .with_context(|| format!("reading {}", path.display()))?;
+    Ok(scan_for_nextn_key(&buf))
+}
+
 fn scan_for_nextn_key(buf: &[u8]) -> bool {
     let mut c = Cursor::new(buf);
 

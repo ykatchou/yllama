@@ -16,7 +16,7 @@ pub fn run() -> Result<()> {
     let spec_w = 16usize;
 
     println!(
-        "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  {:<spec_w$}  URL",
+        "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  {:<spec_w$}  SOURCE",
         "NAME", "STATUS", "SIZE", "DEFAULT", "SPEC-DECODE",
     );
     println!(
@@ -25,7 +25,13 @@ pub fn run() -> Result<()> {
     );
 
     for e in &entries {
-        let status = if e.downloaded { "downloaded" } else { "not downloaded" };
+        // A registered model whose file vanished (deleted by hand, or a link
+        // whose target moved) would otherwise still read as "downloaded".
+        let status = match (e.downloaded, manifest::model_path(e).exists()) {
+            (true, true) => "downloaded",
+            (true, false) => "missing",
+            (false, _) => "not downloaded",
+        };
         let size = e
             .size_bytes
             .map(manifest::format_bytes)
@@ -47,9 +53,13 @@ pub fn run() -> Result<()> {
         } else {
             "unchecked".to_string()
         };
+        let source = match &e.local_source {
+            Some(path) => format!("local: {path}"),
+            None => e.hf_url.clone(),
+        };
         println!(
             "{:<name_w$}  {:<status_w$}  {:<size_w$}  {:<default_w$}  {:<spec_w$}  {}",
-            e.name, status, size, default_str, spec_str, e.hf_url,
+            e.name, status, size, default_str, spec_str, source,
         );
     }
     Ok(())

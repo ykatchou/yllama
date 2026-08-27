@@ -15,6 +15,10 @@ pub async fn run(name: &str) -> Result<()> {
         .clone();
 
     let dest = manifest::model_path(&entry);
+    if let Some(source) = &entry.local_source {
+        println!("Model '{name}' was registered from a local file ({source}) — nothing to download.");
+        return Ok(());
+    }
     if entry.downloaded && dest.exists() {
         println!(
             "Model '{name}' is already downloaded at {}",

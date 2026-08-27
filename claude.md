@@ -9,6 +9,7 @@ This file contains the core instructions and usage patterns for the `yllama` CLI
 
 ### Model Management
 - `yllama models add <url>`: Register a HuggingFace GGUF URL.
+- `yllama models add <path.gguf> [--link|--copy]`: Register a GGUF already on disk (`--link` symlinks it, the default; `--copy` duplicates it into `~/.yllama/models`).
 - `yllama models download <name>`: Download a registered model.
 - `yllama models list`: List all registered models.
 - `yllama models delete <name>`: Remove a model from cache.

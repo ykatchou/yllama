@@ -285,10 +285,11 @@ EXTRA FLAGS (forwarded verbatim to llama-server):
 enum ModelsSubcommand {
     /// List all registered models and their download status
     List,
-    /// Register a HuggingFace GGUF URL or search by name
+    /// Register a HuggingFace GGUF URL, a local .gguf file, or search by name
     Add {
         /// HuggingFace URL (e.g. 'https://huggingface.co/owner/repo/blob/main/model.gguf'),
-        /// owner/repo shorthand (auto-discovers GGUF files), or
+        /// owner/repo shorthand (auto-discovers GGUF files),
+        /// path to a .gguf file already on disk, or
         /// free-text search query (e.g. 'gemma')
         url: String,
         /// Short name for this model (derived from filename if omitted)
@@ -298,6 +299,14 @@ enum ModelsSubcommand {
         /// (skips if already downloaded)
         #[arg(short, long, default_value_t = true)]
         download: bool,
+        /// For a local .gguf: copy it into ~/.yllama/models
+        /// (instant copy-on-write clone on APFS/Btrfs)
+        #[arg(long, conflicts_with = "link")]
+        copy: bool,
+        /// For a local .gguf: symlink it into ~/.yllama/models,
+        /// leaving the file where it is (default)
+        #[arg(long)]
+        link: bool,
     },
     /// Download a registered model with a progress bar
     Download {
@@ -356,8 +365,9 @@ async fn main() -> Result<()> {
             ModelsSubcommand::List => {
                 commands::models::list::run()?;
             }
-            ModelsSubcommand::Add { url, name, download } => {
-                commands::models::add::run(&url, name.as_deref(), download).await?;
+            ModelsSubcommand::Add { url, name, download, copy, link } => {
+                let local_mode = commands::models::add::LocalMode::from_flags(copy, link)?;
+                commands::models::add::run(&url, name.as_deref(), download, local_mode).await?;
             }
             ModelsSubcommand::Download { name } => {
                 commands::models::download::run(&name).await?;
